@@ -1,0 +1,86 @@
+---
+title: "STAT 331 A3"
+author: "Kiarash Madji"
+date: "2023-11-24"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Q3
+
+```{r}
+data <- read.csv("homes.csv")
+pairs(data)
+```
+Suspicious linear association between PropTax/Size which we will need to handle.
+
+```{r}
+fit_full <- lm(Price~., dat=data)
+library(car)
+vif(fit_full)
+```
+
+Even though the pair plot for size and property tax looked fairly linear, we see that it is not a big deal given the variance inflation factors are super small. Hence, we do not need to take any action against multicollinearity.
+
+```{r}
+qqnorm(rstudent(fit_full))
+qqline(rstudent(fit_full), col="red", lwd = 2)
+```
+With this plot, we see that the normality assumption does not hold. the residuals are not normal as expected in a multiple linear regression model. This plot shows that the tails are simply too fat for the studentized residuals to be normal.
+
+```{r}
+data_sqrt <- read.csv("homes.csv")
+data_sqrt$Price <- sqrt(data_sqrt$Price)
+fit_full_sqrt <- lm(Price~., dat=data_sqrt)
+```
+
+```{r}
+qqnorm(rstudent(fit_full_sqrt))
+qqline(rstudent(fit_full_sqrt), col="red", lwd = 2)
+```
+This definitely sounds better and fewer datapoints diverge from the normality expectation. Therefore, this transformation is helpful in dealing with the earlier issue.
+
+```{r}
+library(glmnet)
+
+predictors = model.matrix(fit_full_sqrt)[,-1]
+response = data_sqrt$Price
+
+set.seed(123456789)
+fit_lasso = glmnet(x=predictors, y=response, family="gaussian", alpha=1,
+lambda=cvfit_lasso$lambda.min)
+coef(fit_lasso)
+```
+
+## Q4
+
+```{r}
+data <- read.csv("hospital_dat_raw.csv")
+fit_full <- lm(Stay~., dat=data)
+summary(fit_full)
+```
+
+Explanatory variates ID, Culture, and Xray are not statistically significant at a 0.05\% level.
+
+```{r}
+par(mfrow=c(1, 2))
+qqnorm(rstudent(fit_full))
+qqline(rstudent(fit_full), col="red", lwd = 2)
+plot(fit_full$fitted.values, rstudent(fit_full), xlab = "Fitted Values",
+ylab = " Residuals")
+abline(h = c(0), lty = 2, col = "red")
+```
+
+According to the quantile-quantile plot the normality assumption does not hold as the studentized residuals have fat tails. Outliers exist in data as visible in the residual scatterplot. However, the equal variance assumption holds to a reasonable extent.
+
+```{r}
+step_back= step(object = fit_full, direction = "backward", test="F")
+summary(step_back)
+```
+
+
+
+
