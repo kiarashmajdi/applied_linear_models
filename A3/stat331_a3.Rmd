@@ -80,7 +80,97 @@ According to the quantile-quantile plot the normality assumption does not hold a
 step_back= step(object = fit_full, direction = "backward", test="F")
 summary(step_back)
 ```
+```{r}
+forward_selection <- function(data, response, criterion = "adjusted R2", current_model = NULL, progress=FALSE) {
+  # data: full dataframe
+  # response: name of response variable [string]
+  # criterion: "adjusted R2", "AIC", or "BIC"
+  # The rest are recursion variables - not to be touched on function call
+  
+  
+  # get the names of the predictors
+  predictors <- names(data)[!names(data) %in% response]
 
+  init=FALSE
+  # if no current model, initialize it to empty
+  if (is.null(current_model)) {
+    init=TRUE # so that we print criterion for intercept
+    current_model <- list(1)
+  }
+  # initialize the best model to the current model
+  best_model <- current_model
+  current_fit <- lm(paste(response, paste(current_model, collapse = " + "), sep = " ~ "), data = data)
 
+  # initialize the best criterion value to the current criterion value
+  if (criterion == "adjusted R2") {
+    best_criterion_value <- summary(current_fit)$adj.r.squared
+  } else if (criterion == "AIC") {
+    best_criterion_value <- AIC(current_fit)
+  } else if (criterion == "BIC") {
+    best_criterion_value <- BIC(current_fit)
+  } else {
+    stop("Invalid criterion")
+  }
+  
+  # print criterion if this is the intercept-only model
+  if (init) {
+    print("Intercept (1)")
+    print(best_criterion_value)
+    print("**********************")
+  }
+  
+  # used to choose the best criterion later
+  min_pred <- NULL
+  min_crit <- best_criterion_value
 
+  # loop through the predictors
+  for (predictor in predictors) {
+    # if the predictor is already in the current model, skip it
+    if (predictor %in% current_model) {
+      next
+    }
+
+    # fit the model with new predictor
+    model <- lm(paste(response, paste(c(current_model, predictor), collapse = " + "), sep = " ~ "), data = data)
+
+    # get the criterion value
+    if (criterion == "adjusted R2") {
+      criterion_value <- summary(model)$adj.r.squared
+    } else if (criterion == "AIC") {
+      criterion_value <- AIC(model)
+    } else if (criterion == "BIC") {
+      criterion_value <- BIC(model)
+    }
+    
+    # print predictor and its criterion
+    print(paste(c(current_model, predictor), collapse = " + "))
+    print(criterion_value)
+
+    # if the criterion value is better than the best criterion value, update the best model
+    if (criterion_value < min_crit) {
+      min_crit <- criterion_value
+      min_pred <- predictor
+      progress=TRUE # a better situation than starting situation has been identified
+    }
+  }
+  
+  # move forward if any changes
+  if (progress) {
+    best_model <- c(current_model, min_pred)
+    print(best_model)
+    print("**********************")
+    return (forward_selection(data, response, criterion, current_model=best_model))
+  }
+  
+  # stop and return if no changes, catches the case that all predictors are included because progress remains FALSE from the predictor loop
+  else {
+    return (current_fit)
+  }
+}
+```
+
+```{r}
+data <- read.csv("crime_A3.csv")
+print(forward_selection(data, "CrimeRate", criterion = "AIC"))
+```
 
